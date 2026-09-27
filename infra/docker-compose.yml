@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  ml-service:
+    build:
+      context: ../services/ml
+      dockerfile: ../../infra/Dockerfile.ml
+    container_name: cropsense-ml
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../services/ml/models:/app/models
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ../services/gateway
+      dockerfile: ../../infra/Dockerfile.gateway
+    container_name: cropsense-gateway
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - ML_SERVICE_URL=http://ml-service:8000
+    depends_on:
+      - ml-service
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../../infra/Dockerfile.frontend
+    container_name: cropsense-ui
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:4000
+    depends_on:
+      - gateway
+    restart: unless-stopped
