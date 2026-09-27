@@ -101,18 +101,50 @@ export default function Dashboard() {
     if (!result || result.error || submittingOutcome) return;
     setSubmittingOutcome(true);
     try {
+      const prevUcb = result.linucb?.ucb_score ?? 0;
+      const prevConf = result.confidence ?? 0.85;
+
       const res = await fetch(`${API_URL}/api/outcomes`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           action_taken: result.recommended_action || "standard_treatment",
           outcome,
-          context_json: JSON.stringify(context || []),
+          context_json: JSON.stringify(result.context_vector || context || []),
           context_vector_id: result.context_vector_id || ""
         })
       });
       const data = await res.json();
-      setOutcomeFeedback({ outcome, reward: data.reward, updates: data.total_updates });
+
+      const newUcb = data.updated_decision ? data.updated_decision.arm_ucb : prevUcb;
+      const newConf = data.updated_decision ? data.updated_decision.confidence : prevConf;
+      const scoreDiff = (typeof newUcb === "number" && typeof prevUcb === "number") 
+        ? (newUcb - prevUcb).toFixed(4) 
+        : null;
+
+      setResult(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          confidence: newConf,
+          linucb: {
+            ...prev.linucb,
+            ucb_score: newUcb,
+            ranked_arms: data.updated_decision?.ranked_arms || prev.linucb?.ranked_arms
+          }
+        };
+      });
+
+      setOutcomeFeedback({
+        outcome,
+        reward: data.reward,
+        updates: data.total_updates,
+        prevUcb,
+        newUcb,
+        scoreDiff,
+        prevConf,
+        newConf
+      });
     } catch (err) {
       console.error("Outcome report error:", err);
     } finally {
@@ -284,8 +316,17 @@ export default function Dashboard() {
                     <span className="text-[10px] font-black uppercase tracking-wider text-[#0A1612] bg-[#52B788] px-2.5 py-0.5 rounded-full">
                       {result.crop || result.crop_type || "Crop Identified"}
                     </span>
-                    <span className="text-xs text-gray-300 font-semibold">
+                    <span className="text-xs text-gray-300 font-semibold flex items-center gap-1.5">
                       {Math.round((result.confidence || 0.9) * 100)}% Match
+                      {outcomeFeedback && outcomeFeedback.scoreDiff && (
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                          Number(outcomeFeedback.scoreDiff) < 0 
+                            ? "bg-red-950/80 text-red-400 border-red-800/60" 
+                            : "bg-emerald-950/80 text-emerald-400 border-emerald-800/60"
+                        }`}>
+                          {Number(outcomeFeedback.scoreDiff) > 0 ? `+${outcomeFeedback.scoreDiff}` : outcomeFeedback.scoreDiff} UCB
+                        </span>
+                      )}
                     </span>
                   </div>
                   <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
@@ -454,11 +495,34 @@ export default function Dashboard() {
                 </div>
 
                 {outcomeFeedback && (
-                  <div className="bg-[#11241E] border border-[#234B3D] text-[#52B788] p-3 rounded-xl flex items-center gap-2 text-xs font-medium">
-                    <Award size={16} className="text-[#52B788] shrink-0" />
-                    <span>
-                      Feedback logged! Bandit reward: <b>{outcomeFeedback.reward > 0 ? `+${outcomeFeedback.reward}` : outcomeFeedback.reward}</b> (Total Updates: {outcomeFeedback.updates})
-                    </span>
+                  <div className="bg-[#11241E] border border-[#234B3D] p-3.5 rounded-xl space-y-1.5 text-xs font-medium">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 font-bold text-white">
+                        <Award size={16} className={outcomeFeedback.reward < 0 ? "text-amber-400 shrink-0" : "text-[#52B788] shrink-0"} />
+                        <span>
+                          Feedback logged! Bandit reward:{" "}
+                          <span className={outcomeFeedback.reward < 0 ? "text-red-400 font-bold" : "text-[#52B788] font-bold"}>
+                            {outcomeFeedback.reward > 0 ? `+${outcomeFeedback.reward}` : outcomeFeedback.reward}
+                          </span>{" "}
+                          (Total Updates: {outcomeFeedback.updates})
+                        </span>
+                      </div>
+                      {outcomeFeedback.scoreDiff && (
+                        <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded border ${
+                          Number(outcomeFeedback.scoreDiff) < 0 
+                            ? "bg-red-950/80 text-red-300 border-red-700/60" 
+                            : "bg-emerald-950/80 text-emerald-300 border-emerald-700/60"
+                        }`}>
+                          UCB: {outcomeFeedback.prevUcb} &rarr; {outcomeFeedback.newUcb} ({Number(outcomeFeedback.scoreDiff) > 0 ? `+${outcomeFeedback.scoreDiff}` : outcomeFeedback.scoreDiff})
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-300 font-mono leading-relaxed">
+                      Sherman-Morrison Rank-1 update applied.
+                      {Number(outcomeFeedback.scoreDiff) < 0 
+                        ? ` Negative feedback reduced this arm's UCB score from ${outcomeFeedback.prevUcb} to ${outcomeFeedback.newUcb} (${outcomeFeedback.scoreDiff}).`
+                        : ` Positive feedback boosted this arm's UCB score by +${outcomeFeedback.scoreDiff}.`}
+                    </p>
                   </div>
                 )}
               </div>

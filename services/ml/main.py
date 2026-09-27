@@ -316,6 +316,11 @@ async def record_outcome(request: Request):
     # Perform online LinUCB rank-1 matrix update: A_a <- A_a + x x^T, b_a <- b_a + r x
     policy.update(context=context, action=action_taken, reward=reward)
 
+    # Re-evaluate the context vector with the newly updated policy
+    updated_eval = policy.evaluate_arms(context)
+    arm_stat = next((a for a in updated_eval if a["action"] == action_taken), None)
+    updated_decision = policy.select_action(context)
+
     return {
         "status": "success",
         "action_taken": action_taken,
@@ -323,7 +328,16 @@ async def record_outcome(request: Request):
         "reward": reward,
         "breakdown": breakdown,
         "total_updates": policy.total_updates,
-        "recent_avg_reward": policy.get_stats().get("recent_avg_reward", 0.0)
+        "recent_avg_reward": policy.get_stats().get("recent_avg_reward", 0.0),
+        "updated_decision": {
+            "score": round(updated_decision["score"], 4),
+            "confidence": round(updated_decision["confidence"], 3),
+            "uncertainty_sigma": round(updated_decision["uncertainty_sigma"], 4),
+            "ranked_arms": updated_decision.get("ranked_arms", []),
+            "action": updated_decision["action"],
+            "arm_ucb": round(arm_stat["ucb_score"], 4) if arm_stat else round(updated_decision["score"], 4),
+            "arm_pred_reward": round(arm_stat["predicted_reward"], 4) if arm_stat else 0.0
+        }
     }
 
 
