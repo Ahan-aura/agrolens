@@ -1,13 +1,13 @@
 {
-  "total_updates": 67,
+  "total_updates": 78,
   "action_counts": {
-    "early_blight__copper_fungicide_spray": 37,
+    "early_blight__copper_fungicide_spray": 47,
     "late_blight__escalate_to_agronomist": 0,
     "powdery_mildew__neem_oil_or_sulfur": 0,
     "bacterial_spot__copper_bactericide_and_prune": 0,
     "septoria_leaf_spot__chlorothalonil_protective_spray": 0,
     "yellow_leaf_curl_virus__vector_control_and_cull": 0,
-    "nutrient_deficiency__foliar_micronutrient_spray": 8,
+    "nutrient_deficiency__foliar_micronutrient_spray": 7,
     "healthy__routine_monitoring": 19,
     "high_uncertainty__field_inspection": 0,
     "unidentifiable_condition__standard_protocol": 1,
@@ -17,11 +17,14 @@
     "leaf_skeletonizer_chewing_pest_damage__organic_biological": 0,
     "leaf_skeletonizer_chewing_pest_damage__chemical_control": 0,
     "southern_corn_rust__standard_protocol": 1,
-    "southern_corn_rust__organic_biological": 0,
+    "southern_corn_rust__organic_biological": 1,
     "southern_corn_rust__chemical_control": 0,
     "leaf_blight__standard_protocol": 1,
     "leaf_blight__organic_biological": 0,
-    "leaf_blight__chemical_control": 0
+    "leaf_blight__chemical_control": 0,
+    "anthracnose__standard_protocol": 1,
+    "anthracnose__organic_biological": 0,
+    "anthracnose__chemical_control": 0
   },
   "reward_history": [
     9.8,
@@ -90,7 +93,18 @@
     3.57,
     -2.5,
     -2.5,
-    9.8
+    3.6,
+    9.32,
+    9.31,
+    8.85,
+    3.81,
+    4.64,
+    9.66,
+    9.9,
+    9.11,
+    3.62,
+    9.23,
+    3.6
   ],
   "actions": [
     "early_blight__copper_fungicide_spray",
@@ -113,6 +127,9 @@
     "southern_corn_rust__chemical_control",
     "leaf_blight__standard_protocol",
     "leaf_blight__organic_biological",
-    "leaf_blight__chemical_control"
+    "leaf_blight__chemical_control",
+    "anthracnose__standard_protocol",
+    "anthracnose__organic_biological",
+    "anthracnose__chemical_control"
   ]
 }

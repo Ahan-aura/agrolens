@@ -1,0 +1,22 @@
+{
+  "name": "agrolens",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AgroLens - Adaptive Crop Disease Diagnostics & Reinforcement Learning System",
+  "scripts": {
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "dev": "npm --prefix frontend run dev",
+    "start": "npm --prefix frontend run preview"
+  },
+  "keywords": [
+    "agrolens",
+    "reinforcement-learning",
+    "linucb",
+    "crop-disease",
+    "plant-pathology",
+    "react",
+    "vite"
+  ],
+  "author": "Ahan-aura",
+  "license": "MIT"
+}

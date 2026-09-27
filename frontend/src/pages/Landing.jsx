@@ -30,8 +30,9 @@ import {
 import Nav from "../components/Nav.jsx";
 import AgroLensLogo from "../components/AgroLensLogo.jsx";
 import CameraModal from "../components/CameraModal.jsx";
+import { clientDiagnoseFallback, clientUpdateLinUCB } from "../services/clientBandit.js";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const API_URL = import.meta.env.VITE_API_URL || "";
 const DEFAULT_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
 
 // Enhanced interactive Disease Library dataset with multi-tab cures
@@ -336,26 +337,35 @@ export default function Landing() {
     scrollToSection("scanner");
 
     try {
-      const formData = new FormData();
-      formData.append("file", fileToDiagnose);
-      formData.append("crop_type", "auto");
-      formData.append("growth_stage", "vegetative");
-      if (apiKey) {
-        formData.append("api_key", apiKey);
+      let data = null;
+      try {
+        const formData = new FormData();
+        formData.append("file", fileToDiagnose);
+        formData.append("crop_type", "auto");
+        formData.append("growth_stage", "vegetative");
+        if (apiKey) {
+          formData.append("api_key", apiKey);
+        }
+
+        const res = await fetch(`${API_URL}/api/diagnose`, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (res.ok) {
+          data = await res.json();
+        }
+      } catch (networkErr) {
+        console.warn("Backend unavailable, activating resilient edge LinUCB:", networkErr);
       }
 
-      const res = await fetch(`${API_URL}/api/diagnose`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        throw new Error(`Diagnosis request failed (${res.status})`);
+      if (!data) {
+        // Fallback to client-side edge LinUCB & Gemini vision
+        data = await clientDiagnoseFallback(fileToDiagnose, apiKey);
       }
 
-      const data = await res.json();
       setResult(data);
-      setContext(data.context_vector_id || data.context_vector);
+      setContext(data.context_vector_id || data.context_vector || []);
     } catch (err) {
       console.error("Diagnosis error:", err);
       setResult({
@@ -373,18 +383,29 @@ export default function Landing() {
     try {
       const prevUcb = result.linucb?.ucb_score ?? 0;
       const prevConf = result.confidence ?? 0.85;
+      let data = null;
 
-      const res = await fetch(`${API_URL}/api/outcomes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          action_taken: result.recommended_action || "standard_treatment",
-          outcome,
-          context_json: JSON.stringify(result.context_vector || context || []),
-          context_vector_id: result.context_vector_id || ""
-        })
-      });
-      const data = await res.json();
+      try {
+        const res = await fetch(`${API_URL}/api/outcomes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            action_taken: result.recommended_action || "standard_treatment",
+            outcome,
+            context_json: JSON.stringify(result.context_vector || context || []),
+            context_vector_id: result.context_vector_id || ""
+          })
+        });
+        if (res.ok) {
+          data = await res.json();
+        }
+      } catch (err) {
+        console.warn("Backend outcomes unavailable, updating client LinUCB:", err);
+      }
+
+      if (!data) {
+        data = clientUpdateLinUCB(result.recommended_action || "early_blight__copper_fungicide_spray", outcome);
+      }
       
       const newUcb = data.updated_decision ? data.updated_decision.arm_ucb : prevUcb;
       const newConf = data.updated_decision ? data.updated_decision.confidence : prevConf;
