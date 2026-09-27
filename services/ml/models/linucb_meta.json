@@ -24,7 +24,10 @@
     "leaf_blight__chemical_control": 0,
     "anthracnose__standard_protocol": 1,
     "anthracnose__organic_biological": 0,
-    "anthracnose__chemical_control": 0
+    "anthracnose__chemical_control": 0,
+    "no_plant_detected__standard_protocol": 0,
+    "no_plant_detected__organic_biological": 0,
+    "no_plant_detected__chemical_control": 0
   },
   "reward_history": [
     9.8,
@@ -130,6 +133,9 @@
     "leaf_blight__chemical_control",
     "anthracnose__standard_protocol",
     "anthracnose__organic_biological",
-    "anthracnose__chemical_control"
+    "anthracnose__chemical_control",
+    "no_plant_detected__standard_protocol",
+    "no_plant_detected__organic_biological",
+    "no_plant_detected__chemical_control"
   ]
 }

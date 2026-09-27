@@ -15,7 +15,7 @@ import {
 import Nav from "../components/Nav.jsx";
 import AgroLensLogo from "../components/AgroLensLogo.jsx";
 import CameraModal from "../components/CameraModal.jsx";
-import { clientDiagnoseFallback, clientUpdateLinUCB } from "../services/clientBandit.js";
+import { clientDiagnoseFallback, clientUpdateLinUCB, getEffectiveApiKey } from "../services/clientBandit.js";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 const DEFAULT_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
@@ -33,7 +33,7 @@ export default function Dashboard() {
   const [outcomeFeedback, setOutcomeFeedback] = useState(null);
   const [submittingOutcome, setSubmittingOutcome] = useState(false);
 
-  const [apiKey] = useState(() => localStorage.getItem("cropsense_google_api_key") || DEFAULT_KEY);
+  const [apiKey, setApiKey] = useState(() => getEffectiveApiKey());
 
   const handleCapturePhoto = (capturedFile, previewUrl) => {
     setFile(capturedFile);
@@ -182,7 +182,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#0A1612] text-white font-sans antialiased selection:bg-[#52B788] selection:text-[#0A1612] flex flex-col justify-between">
-      <Nav />
+      <Nav onKeySaved={(newKey) => setApiKey(newKey)} />
 
       <input
         ref={fileInputRef}

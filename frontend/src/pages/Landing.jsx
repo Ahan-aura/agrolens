@@ -30,7 +30,7 @@ import {
 import Nav from "../components/Nav.jsx";
 import AgroLensLogo from "../components/AgroLensLogo.jsx";
 import CameraModal from "../components/CameraModal.jsx";
-import { clientDiagnoseFallback, clientUpdateLinUCB } from "../services/clientBandit.js";
+import { clientDiagnoseFallback, clientUpdateLinUCB, getEffectiveApiKey } from "../services/clientBandit.js";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 const DEFAULT_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
@@ -191,7 +191,7 @@ export default function Landing() {
   const [selectedDiseaseModal, setSelectedDiseaseModal] = useState(null);
 
   // API Key
-  const [apiKey] = useState(() => localStorage.getItem("cropsense_google_api_key") || DEFAULT_KEY);
+  const [apiKey, setApiKey] = useState(() => getEffectiveApiKey());
 
   // Trigger the slow cinematic transition from full screen video into the website
   const startSlowTransition = () => {
@@ -604,6 +604,7 @@ export default function Landing() {
         <Nav
           onReplayVideo={handleReplayIntro}
           onScrollToSection={scrollToSection}
+          onKeySaved={(newKey) => setApiKey(newKey)}
         />
 
         {/* HERO SECTION */}

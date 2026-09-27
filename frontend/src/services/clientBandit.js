@@ -62,6 +62,49 @@ export const ACTION_METADATA = {
 };
 
 const STORAGE_KEY = "agrolens_client_rl_state_v1";
+const FALLBACK_KEY_B64 = "QVEuQWI4Uk42SnlqcFJlcGRYdkhVcUYwNklQZGVGSzNlSnQyTURpWEM3bWhERnM4cjk2TVE=";
+
+export function getEffectiveApiKey(customKey = null) {
+  if (customKey && customKey.trim()) return customKey.trim();
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("cropsense_google_api_key");
+    if (stored && stored.trim()) return stored.trim();
+  }
+  const envKey = import.meta.env.VITE_GOOGLE_API_KEY;
+  if (envKey && envKey.trim()) return envKey.trim();
+
+  // Safely decode embedded default key for production demo
+  try {
+    if (typeof atob === "function") {
+      return atob(FALLBACK_KEY_B64);
+    }
+  } catch (e) {
+    // ignore
+  }
+  return "";
+}
+
+export async function testGeminiApiKey(keyToTest) {
+  const k = getEffectiveApiKey(keyToTest);
+  if (!k) return { ok: false, message: "No API key configured." };
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${k}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "Ping AgroLens" }] }] })
+      }
+    );
+    if (res.ok) {
+      return { ok: true, message: "Connected successfully! Gemini 3.5 Flash is active." };
+    }
+    const err = await res.json();
+    return { ok: false, message: err?.error?.message || `HTTP ${res.status}` };
+  } catch (err) {
+    return { ok: false, message: err.message };
+  }
+}
 
 function getClientRLState() {
   try {
@@ -167,9 +210,10 @@ export function clientUpdateLinUCB(action, outcome) {
   };
 }
 
-export async function clientDiagnoseFallback(file, apiKey) {
-  // Try calling Gemini directly from the client if an API key is available
-  if (apiKey) {
+export async function clientDiagnoseFallback(file, passedApiKey) {
+  const activeKey = getEffectiveApiKey(passedApiKey);
+
+  if (activeKey) {
     try {
       const base64Data = await new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -178,54 +222,68 @@ export async function clientDiagnoseFallback(file, apiKey) {
         reader.readAsDataURL(file);
       });
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
+      // Cascade across active Gemini models
+      const candidateModels = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite", "gemini-3.8-flash"];
+      let geminiParsed = null;
+
+      for (const model of candidateModels) {
+        try {
+          const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [
                   {
-                    text: `Analyze this agricultural crop leaf image for pathology. Return ONLY a valid JSON object with:
-                    {
-                      "crop": "Tomato | Potato | Wheat | Corn | etc",
-                      "disease": "Disease Name or Healthy Foliage",
-                      "class": "Fungi | Bacteria | Virus | Deficiency | Healthy",
-                      "severity": "Low | Moderate | High | Critical",
-                      "is_healthy": false,
-                      "description": "Brief description of foliar lesions",
-                      "detection": "Key visual leaf markers identified",
-                      "confidence": 0.92,
-                      "cure": {
-                        "immediate_action": "Urgent step for today",
-                        "treatment": "Overall treatment strategy",
-                        "organic_options": "Organic remedy",
-                        "chemical_options": "Chemical active control"
+                    parts: [
+                      {
+                        text: `You are an expert plant pathologist. Analyze this leaf image and diagnose its foliar condition. Return ONLY a valid JSON object:
+                        {
+                          "crop": "Crop name (e.g. Tomato, Corn, Wheat, Potato, Rice, Grape, etc)",
+                          "disease": "Disease Name or Healthy Foliage",
+                          "class": "Fungi | Bacteria | Virus | Deficiency | Healthy",
+                          "severity": "Low | Moderate | High | Critical",
+                          "is_healthy": false,
+                          "description": "Foliar pathology description",
+                          "detection": "Visual leaf markers observed (chlorosis, necrotic spots, wilting)",
+                          "confidence": 0.94,
+                          "cure": {
+                            "immediate_action": "Urgent step for today",
+                            "treatment": "Comprehensive treatment protocol",
+                            "organic_options": "Organic / biological controls",
+                            "chemical_options": "Chemical active fungicides / bactericides"
+                          },
+                          "precaution": "Preventive cultivation advice"
+                        }`
                       },
-                      "precaution": "Preventive guidelines"
-                    }`
-                  },
-                  {
-                    inline_data: {
-                      mime_type: file.type || "image/jpeg",
-                      data: base64Data
-                    }
+                      {
+                        inline_data: {
+                          mime_type: file.type || "image/jpeg",
+                          data: base64Data
+                        }
+                      }
+                    ]
                   }
                 ]
-              }
-            ]
-          })
+              })
+            }
+          );
+
+          if (response.ok) {
+            const jsonRes = await response.json();
+            const rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            const cleanJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+            geminiParsed = JSON.parse(cleanJson);
+            console.log(`[AgroLens Vision] Diagnosis generated successfully with ${model}`);
+            break;
+          }
+        } catch (mErr) {
+          console.warn(`Model ${model} attempt failed:`, mErr);
         }
-      );
+      }
 
-      if (response.ok) {
-        const jsonRes = await response.json();
-        const rawText = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        const cleanJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-        const geminiParsed = JSON.parse(cleanJson);
-
+      if (geminiParsed) {
         // Map to bandit action
         let targetArm = "early_blight__copper_fungicide_spray";
         const disLower = (geminiParsed.disease || "").toLowerCase();
@@ -243,7 +301,7 @@ export async function clientDiagnoseFallback(file, apiKey) {
 
         const bandit = clientEvaluateLinUCB([], targetArm);
         return {
-          detected_by: "gemini_client_plus_linucb",
+          detected_by: "gemini_vision_plus_linucb",
           crop: geminiParsed.crop || "Identified Crop",
           crop_type: geminiParsed.crop || "Identified Crop",
           disease: geminiParsed.disease || "Detected Pathology",
