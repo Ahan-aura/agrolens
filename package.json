@@ -4,7 +4,7 @@
   "private": true,
   "description": "AgroLens - Adaptive Crop Disease Diagnostics & Reinforcement Learning System",
   "scripts": {
-    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "build": "node build.cjs",
     "dev": "npm --prefix frontend run dev",
     "start": "npm --prefix frontend run preview"
   },
